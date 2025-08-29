@@ -1,0 +1,72 @@
+{
+  "nav": {
+    "home": "Accueil",
+    "videos": "Vidéos",
+    "aboutUs": "À propos de nous",
+    "submit": "Soumettre",
+    "searchVideos": "Rechercher des vidéos"
+  },
+  "home": {
+    "featuredContent": "Contenu en vedette",
+    "popularCategories": "Catégories populaires",
+    "stickFights": "Combats de stickman",
+    "tutorials": "Tutoriels",
+    "collabs": "Collaborations",
+    "assets": "Ressources",
+    "home": "Accueil",
+    "allVideos": "Toutes les vidéos",
+    "viewAll": "Voir tout"
+  },
+  "category": {
+    "stickFights": "Combats de stickman",
+    "tutorials": "Tutoriels",
+    "collabs": "Collaborations",
+    "assets": "Ressources",
+    "itemsAvailable": "éléments disponibles",
+    "backToBrowse": "Retour à la navigation"
+  },
+  "itemPage": {
+    "backToBrowse": "Retour à la navigation",
+    "followers": "abonnés",
+    "moreFrom": "Plus de",
+    "follow": "suivre",
+    "description": "Description",
+    "tags": "Étiquettes",
+    "comments": "Commentaires",
+    "addAComment": "Ajouter un commentaire",
+    "like": "Aimer",
+    "reply": "Répondre",
+    "post": "Publier"
+  },
+  "sidebar": {
+    "home": "Accueil",
+    "downloadSticknodes": "Télécharger StickNodes",
+    "videos": "Vidéos",
+    "stickFights": "Combats de stickman",
+    "tutorials": "Tutoriels",
+    "collabs": "Collaborations",
+    "assets": "Ressources",
+    "categories": "Catégories",
+    "popularThisWeek": "Populaire cette semaine",
+    "myAccount": "Mon compte"
+  },
+  "footer": {
+    "shortDescription": "La plateforme de référence pour les animations et ressources de figures bâtons.",
+    "quickLinks": "Liens rapides",
+    "home": "Accueil",
+    "about": "À propos",
+    "videos": "Vidéos",
+    "submitVideo": "Soumettre une vidéo",
+    "legal": "Mentions légales",
+    "privacyPolicy": "Politique de confidentialité",
+    "termsOfService": "Conditions d'utilisation",
+    "copyrightInfo": "Informations sur le droit d’auteur",
+    "support": "Support",
+    "contactUs": "Contactez-nous",
+    "report": "signaler le contenu",
+    "newsletter": "Newsletter",
+    "newsletterDesc": "Inscrivez-vous pour recevoir des mises à jour sur les nouvelles animations et fonctionnalités.",
+    "yourEmail": "Votre e-mail",
+    "subscribe": "S’abonner"
+  }
+}

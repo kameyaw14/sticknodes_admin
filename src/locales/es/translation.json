@@ -1,0 +1,72 @@
+{
+  "nav": {
+    "home": "Inicio",
+    "videos": "Videos",
+    "aboutUs": "Sobre nosotros",
+    "submit": "Enviar",
+    "searchVideos": "Buscar videos"
+  },
+  "home": {
+    "featuredContent": "Contenido destacado",
+    "popularCategories": "Categorías populares",
+    "stickFights": "Peleas de palitos",
+    "tutorials": "Tutoriales",
+    "collabs": "Colaboraciones",
+    "assets": "Recursos",
+    "home": "Inicio",
+    "allVideos": "Todos los videos",
+    "viewAll": "Ver todo"
+  },
+  "category": {
+    "stickFights": "Peleas de palitos",
+    "tutorials": "Tutoriales",
+    "collabs": "Colaboraciones",
+    "assets": "Recursos",
+    "itemsAvailable": "artículos disponibles",
+    "backToBrowse": "Volver a explorar"
+  },
+  "itemPage": {
+    "backToBrowse": "Volver a explorar",
+    "followers": "seguidores",
+    "moreFrom": "Más de",
+    "follow": "seguir",
+    "description": "Descripción",
+    "tags": "Etiquetas",
+    "comments": "Comentarios",
+    "addAComment": "Agregar un comentario",
+    "like": "Me gusta",
+    "reply": "Responder",
+    "post": "Publicar"
+  },
+  "sidebar": {
+    "home": "Inicio",
+    "downloadSticknodes": "Descargar StickNodes",
+    "videos": "Videos",
+    "stickFights": "Peleas de palitos",
+    "tutorials": "Tutoriales",
+    "collabs": "Colaboraciones",
+    "assets": "Recursos",
+    "categories": "Categorías",
+    "popularThisWeek": "Popular esta semana",
+    "myAccount": "Mi cuenta"
+  },
+  "footer": {
+    "shortDescription": "La plataforma de referencia para animaciones y recursos de figuras de palitos.",
+    "quickLinks": "Enlaces rápidos",
+    "home": "Inicio",
+    "about": "Acerca de",
+    "videos": "Videos",
+    "submitVideo": "Enviar video",
+    "legal": "Legal",
+    "privacyPolicy": "Política de privacidad",
+    "termsOfService": "Términos de servicio",
+    "copyrightInfo": "Información de derechos de autor",
+    "support": "Soporte",
+    "contactUs": "Contáctanos",
+    "report": "Reportar contenido",
+    "newsletter": "Boletín",
+    "newsletterDesc": "Suscríbete para recibir actualizaciones sobre nuevas animaciones y funciones.",
+    "yourEmail": "Tu correo",
+    "subscribe": "Suscribirse"
+  }
+}

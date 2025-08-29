@@ -1,0 +1,75 @@
+{
+  "nav": {
+    "home": "Home",
+    "videos": "Videos",
+    "aboutUs": "About Us",
+    "submit": "Submit",
+    "searchVideos": "Search videos"
+  },
+
+  "home": {
+    "featuredContent": "Featured Content",
+    "popularCategories": "Popular Categories",
+    "stickFights": "Stick Fights",
+    "tutorials": "Tutorials",
+    "collabs": "Collabs",
+    "assets": "Assets",
+    "home": "Home",
+    "allVideos": "All Videos",
+    "viewAll" : "View All"
+  },
+
+  "category": {
+    "stickFights": "Stick Fights",
+    "tutorials": "Tutorials",
+    "collabs": "Collabs",
+    "assets": "Assets",
+    "itemsAvailable": "items available",
+    "backToBrowse": "Back To Browse"
+  },
+  "itemPage": {
+    "backToBrowse": "Back To Browse",
+    "followers": "followers",
+    "moreFrom": "More from",
+    "follow": "follow",
+    "description": "Description",
+    "tags": "Tags",
+    "comments": "Comments",
+    "addAComment": "Add a comment",
+    "like": "Like",
+    "reply": "Reply",
+    "post": "Post"
+  },
+  "sidebar": {
+    "home": "Home",
+    "downloadSticknodes": "Download StickNodes",
+    "videos": "Videos",
+    "stickFights": "Stick Fights",
+    "tutorials": "Tutorials",
+    "collabs": "Collabs",
+    "assets": "Assets",
+    "categories": "Categories",
+    "popularThisWeek": "Popular This Week",
+    "myAccount": "My Account",
+    "login": "Login"
+  },
+  "footer": {
+    "shortDescription": "The premier platform for stick figure animations and assets.",
+    "quickLinks": "Quick Links",
+    "home": "Home",
+    "about": "About",
+    "videos": "Videos",
+    "submitVideo": "Submit Video",
+    "legal": "Legal",
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service",
+    "copyrightInfo": "Copyright Info",
+    "support": "Support",
+    "contactUs": "Contact Us",
+    "report": "reportContent",
+    "newsletter": "Newsletter",
+    "newsletterDesc": "Subscribe to get updates on new animations and features.",
+    "yourEmail": "Your email",
+    "subscribe": "Subscribe"
+  }
+}
