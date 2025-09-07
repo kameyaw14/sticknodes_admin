@@ -7,6 +7,7 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { FcApprove } from 'react-icons/fc';
 import { GoStarFill } from 'react-icons/go';
+import { Link } from 'react-router-dom';
 
 const COLORS = {
   background: '#F5F7FA',
@@ -376,7 +377,14 @@ const Videos = () => {
                     />
                   </td>
                   <td className="p-2" style={{ color: COLORS.text }}>
-                    {video.title}
+                    <Link
+                      to={`/admin/videos/${video._id}`}
+                      // target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-500 underline hover:text-blue-700"
+                    >
+                      {video.title}
+                    </Link>
                   </td>
                   <td className="p-2" style={{ color: COLORS.text }}>
                     {video.category}
