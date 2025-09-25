@@ -1,44 +1,256 @@
-// src/App.jsx
-import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import AdminLogin from './pages/AdminLogin';
-import AdminDashboard from './pages/AdminDashboard';
-import Users from './pages/Users';
-import Videos from './pages/Videos';
-import Comments from './pages/Comments';
-import Events from './pages/Events';
-import VideoDetail from './pages/VideoDetail'; // NEW ADDITION: Import VideoDetail
-import ProtectedAdminRoute from './components/ProtectedAdminRoute';
-import Layout from './components/Layout';
-import { useAppContext } from './contexts/AppContext';
+// NO CHANGES: Existing imports
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import axios from "axios";
+import { toast } from "sonner";
+// NEW ADDITION: Import Socket.IO client
+import { io } from 'socket.io-client';
 
-const App = () => {
-  const { admin } = useAppContext();
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/" element={<AdminLogin />} />
-        <Route
-          path="/admin/*"
-          element={
-            <ProtectedAdminRoute>
-              <Layout>
-                <Routes>
-                  <Route path="dashboard" element={<AdminDashboard />} />
-                  <Route path="users" element={<Users />} />
-                  <Route path="videos" element={<Videos />} />
-                  <Route path="videos/:videoId" element={<VideoDetail />} /> {/* NEW ADDITION: Route for VideoDetail */}
-                  <Route path="comments" element={<Comments />} />
-                  <Route path="events" element={<Events />} />
-                </Routes>
-              </Layout>
-            </ProtectedAdminRoute>
+// NO CHANGES: Context setup
+const AppContext = createContext();
+
+axios.defaults.withCredentials = true;
+
+export const AppProvider = ({ children }) => {
+  // NO CHANGES: Existing BASE_URL
+  const BASE_URL = import.meta.env.VITE_SERVER_URL || 
+    (import.meta.env.VITE_ENV === "development"
+      ? "http://localhost:3100/api/"
+      : "https://sticknodestv-server.onrender.com/api/");
+
+  // NO CHANGES: Existing state
+  const [admin, setAdmin] = useState(() => {
+    const savedAdmin = localStorage.getItem("admin");
+    return savedAdmin ? JSON.parse(savedAdmin) : null;
+  });
+  const [isCheckingAdminAuth, setIsCheckingAdminAuth] = useState(true);
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(!!localStorage.getItem("adminAccessToken"));
+  const [error, setError] = useState(null);
+  const [videos, setVideos] = useState([]);
+  const [accessToken, setAccessToken] = useState(localStorage.getItem("adminAccessToken") || "");
+  // NEW ADDITION: State for Socket.IO client
+  const [socket, setSocket] = useState(null);
+
+  // NEW ADDITION: Initialize Socket.IO
+  useEffect(() => {
+    const socketInstance = io(BASE_URL.replace('/api/', ''), {
+      auth: { token: `Bearer ${accessToken}` },
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+    setSocket(socketInstance);
+    return () => {
+      socketInstance.disconnect(); // NEW ADDITION: Cleanup on unmount
+    };
+  }, [accessToken, BASE_URL]);
+
+  // NO CHANGES: Existing adminLogin
+  const adminLogin = useCallback(async (email, password, secretKey) => {
+    try {
+      const response = await axios.post(`${BASE_URL}admin/login`, { email, password, secretKey });
+      const { admin, accessToken, refreshToken } = response.data;
+
+      setAdmin(admin);
+      setAccessToken(accessToken);
+      setIsAdminAuthenticated(true);
+      localStorage.setItem("admin", JSON.stringify(admin));
+      localStorage.setItem("adminAccessToken", accessToken);
+      localStorage.setItem("adminRefreshToken", refreshToken);
+      toast.success("Admin logged in successfully");
+      return { success: true };
+    } catch (error) {
+      const message = error.response?.data?.message || "Failed to login";
+      setError(message);
+      toast.error(message);
+      return { success: false, message };
+    }
+  }, [BASE_URL]);
+
+  // NO CHANGES: Existing adminLogout
+  const adminLogout = useCallback(() => {
+    setAdmin(null);
+    setAccessToken("");
+    setIsAdminAuthenticated(false);
+    localStorage.removeItem("admin");
+    localStorage.removeItem("adminAccessToken");
+    localStorage.removeItem("adminRefreshToken");
+    toast.success("Logged out successfully");
+  }, []);
+
+  // NO CHANGES: Existing refreshAdminToken
+  const refreshAdminToken = useCallback(async () => {
+    try {
+      const refreshToken = localStorage.getItem("adminRefreshToken");
+      if (!refreshToken) throw new Error("No refresh token available");
+      const response = await axios.post(`${BASE_URL}admin/refresh-token`, { refreshToken });
+      const { accessToken } = response.data;
+      setAccessToken(accessToken);
+      localStorage.setItem("adminAccessToken", accessToken);
+      setIsAdminAuthenticated(true);
+      return accessToken;
+    } catch (error) {
+      console.error("Token refresh error:", error);
+      adminLogout();
+      return null;
+    }
+  }, [BASE_URL, adminLogout]);
+
+  // NO CHANGES: Existing checkAdminAuth
+  const checkAdminAuth = useCallback(async () => {
+    if (!localStorage.getItem("adminAccessToken")) {
+      setIsCheckingAdminAuth(false);
+      setIsAdminAuthenticated(false);
+      return;
+    }
+
+    try {
+      setIsCheckingAdminAuth(true);
+      const response = await axios.get(`${BASE_URL}admin/check-auth`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      setAdmin(response.data.admin);
+      setIsAdminAuthenticated(true);
+      localStorage.setItem("admin", JSON.stringify(response.data.admin));
+    } catch (error) {
+      if (error.response?.status === 401) {
+        const newToken = await refreshAdminToken();
+        if (newToken) {
+          try {
+            const response = await axios.get(`${BASE_URL}admin/check-auth`, {
+              headers: { Authorization: `Bearer ${newToken}` },
+            });
+            setAdmin(response.data.admin);
+            setIsAdminAuthenticated(true);
+            localStorage.setItem("admin", JSON.stringify(response.data.admin));
+          } catch (retryError) {
+            adminLogout();
           }
-        />
-      </Routes>
-    </BrowserRouter>
+        } else {
+          adminLogout();
+        }
+      } else {
+        adminLogout();
+      }
+    } finally {
+      setIsCheckingAdminAuth(false);
+    }
+  }, [BASE_URL, accessToken, refreshAdminToken, adminLogout]);
+
+  // NO CHANGES: Existing fetchVideos
+  const fetchVideos = useCallback(async (params = {}) => {
+    try {
+      const response = await axios.get(`${BASE_URL}admin/videos`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        params,
+      });
+      setVideos(response.data.data.videos);
+      return response.data;
+    } catch (error) {
+      if (error.response?.status === 401) {
+        const newToken = await refreshAdminToken();
+        if (newToken) {
+          try {
+            const response = await axios.get(`${BASE_URL}admin/videos`, {
+              headers: { Authorization: `Bearer ${newToken}` },
+              params,
+            });
+            setVideos(response.data.data.videos);
+            return response.data;
+          } catch (retryError) {
+            const message = retryError.response?.data?.message || "Failed to fetch videos";
+            toast.error(message);
+            return { success: false, message };
+          }
+        } else {
+          adminLogout();
+          return { success: false, message: "Authentication failed" };
+        }
+      } else {
+        const message = error.response?.data?.message || "Failed to fetch videos";
+        toast.error(message);
+        return { success: false, message };
+      }
+    }
+  }, [BASE_URL, accessToken, refreshAdminToken, adminLogout]);
+
+  // NEW ADDITION: Function to fetch audit logs
+  const fetchAuditLogs = useCallback(async (params = {}) => {
+    try {
+      const response = await axios.get(`${BASE_URL}admin/audit-logs`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        params,
+      });
+      return response.data;
+    } catch (error) {
+      if (error.response?.status === 401) {
+        const newToken = await refreshAdminToken();
+        if (newToken) {
+          try {
+            const response = await axios.get(`${BASE_URL}admin/audit-logs`, {
+              headers: { Authorization: `Bearer ${newToken}` },
+              params,
+            });
+            return response.data;
+          } catch (retryError) {
+            const message = retryError.response?.data?.message || "Failed to fetch audit logs";
+            toast.error(message);
+            return { success: false, message };
+          }
+        } else {
+          adminLogout();
+          return { success: false, message: "Authentication failed" };
+        }
+      } else {
+        const message = error.response?.data?.message || "Failed to fetch audit logs";
+        toast.error(message);
+        return { success: false, message };
+      }
+    }
+  }, [BASE_URL, accessToken, refreshAdminToken, adminLogout]);
+
+  // NO CHANGES: Existing effects
+  useEffect(() => {
+    checkAdminAuth();
+  }, [checkAdminAuth]);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const newToken = await refreshAdminToken();
+      if (!newToken) {
+        console.log("Token refresh failed, logging out");
+      }
+    }, 15 * 60 * 1000); // Refresh every 15 minutes
+    return () => clearInterval(interval);
+  }, [refreshAdminToken]);
+
+  // NO CHANGES: Context provider with new fetchAuditLogs and socket
+  return (
+    <AppContext.Provider
+      value={{
+        admin,
+        BASE_URL,
+        isAdminAuthenticated,
+        isCheckingAdminAuth,
+        adminLogin,
+        adminLogout,
+        checkAdminAuth,
+        refreshAdminToken,
+        fetchVideos,
+        fetchAuditLogs, // NEW ADDITION: Provide fetchAuditLogs
+        accessToken,
+        videos,
+        setVideos,
+        error,
+        setError,
+        socket, // NEW ADDITION: Provide socket instance
+      }}
+    >
+      {children}
+    </AppContext.Provider>
   );
 };
 
-export default App;
+// NO CHANGES: Context hook
+export const useAppContext = () => {
+  return useContext(AppContext);
+};

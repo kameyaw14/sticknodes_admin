@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { toast } from "sonner";
+import { io } from "socket.io-client";
 
 const AppContext = createContext();
 
@@ -21,6 +22,20 @@ export const AppProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const [videos, setVideos] = useState([]);
   const [accessToken, setAccessToken] = useState(localStorage.getItem("adminAccessToken") || "");
+    const [socket, setSocket] = useState(null);
+
+     useEffect(() => {
+    const socketInstance = io(BASE_URL.replace('/api/', ''), {
+      auth: { token: `Bearer ${accessToken}` },
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+    setSocket(socketInstance);
+    return () => {
+      socketInstance.disconnect(); // NEW ADDITION: Cleanup on unmount
+    };
+  }, [accessToken, BASE_URL]);
 
   const adminLogin = useCallback(async (email, password, secretKey) => {
     try {
@@ -160,6 +175,40 @@ export const AppProvider = ({ children }) => {
     return () => clearInterval(interval);
   }, [refreshAdminToken]);
 
+    const fetchAuditLogs = useCallback(async (params = {}) => {
+    try {
+      const response = await axios.get(`${BASE_URL}admin/audit-logs`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        params,
+      });
+      return response.data;
+    } catch (error) {
+      if (error.response?.status === 401) {
+        const newToken = await refreshAdminToken();
+        if (newToken) {
+          try {
+            const response = await axios.get(`${BASE_URL}admin/audit-logs`, {
+              headers: { Authorization: `Bearer ${newToken}` },
+              params,
+            });
+            return response.data;
+          } catch (retryError) {
+            const message = retryError.response?.data?.message || "Failed to fetch audit logs";
+            toast.error(message);
+            return { success: false, message };
+          }
+        } else {
+          adminLogout();
+          return { success: false, message: "Authentication failed" };
+        }
+      } else {
+        const message = error.response?.data?.message || "Failed to fetch audit logs";
+        toast.error(message);
+        return { success: false, message };
+      }
+    }
+  }, [BASE_URL, accessToken, refreshAdminToken, adminLogout]);
+
   return (
     <AppContext.Provider
       value={{
@@ -177,6 +226,8 @@ export const AppProvider = ({ children }) => {
         setVideos,
         error,
         setError,
+        socket,
+        fetchAuditLogs
       }}
     >
       {children}
