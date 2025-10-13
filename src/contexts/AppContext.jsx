@@ -8,7 +8,7 @@ const AppContext = createContext();
 axios.defaults.withCredentials = true;
 
 export const AppProvider = ({ children }) => {
-  const BASE_URL = import.meta.env.VITE_SERVER_URL || 
+  const BASE_URL = `${import.meta.env.VITE_SERVER_URL}/api/` || 
     (import.meta.env.VITE_ENV === "development"
       ? "http://localhost:3100/api/"
       : `${import.meta.env.VITE_SERVER_URL}/api/`);
