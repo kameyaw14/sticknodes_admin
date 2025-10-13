@@ -11,7 +11,7 @@ export const AppProvider = ({ children }) => {
   const BASE_URL = import.meta.env.VITE_SERVER_URL || 
     (import.meta.env.VITE_ENV === "development"
       ? "http://localhost:3100/api/"
-      : "https://sticknodestv-server.vercel.app/api/");
+      : `${import.meta.env.VITE_SERVER_URL}/api/`);
 
   const [admin, setAdmin] = useState(() => {
     const savedAdmin = localStorage.getItem("admin");
