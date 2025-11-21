@@ -10,9 +10,10 @@ import ProtectedAdminRoute from './components/ProtectedAdminRoute';
 import Layout from './components/Layout';
 import { useAppContext } from './contexts/AppContext';
 import VideoDetail from './pages/VideoDetail';
+import NotificationsPage from './pages/NotificationsPage';
 
 const App = () => {
-  const {admin} = useAppContext()
+  const { admin } = useAppContext()
   return (
     <BrowserRouter>
       <Routes>
@@ -30,6 +31,7 @@ const App = () => {
                   <Route path="videos/:videoId" element={<VideoDetail />} />
                   <Route path="comments" element={<Comments />} />
                   <Route path="events" element={<Events />} />
+                  <Route path="notifications" element={<NotificationsPage />} />
                 </Routes>
               </Layout>
             </ProtectedAdminRoute>

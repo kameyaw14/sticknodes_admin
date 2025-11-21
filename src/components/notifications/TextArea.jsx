@@ -1,0 +1,13 @@
+export const TextArea = ({ label, id, ...props }) => (
+  <div className="space-y-1">
+    <label htmlFor={id} className="block text-sm font-medium text-gray-700">
+      {label}
+    </label>
+    <textarea
+      id={id}
+      rows={4}
+      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 outline-none bg-gray-50 resize-none"
+      {...props}
+    />
+  </div>
+);
