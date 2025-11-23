@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, Video, MessageSquare, Calendar, LogOut, X, Menu, Megaphone } from 'lucide-react';
+import { LayoutDashboard, Users, Video, MessageSquare, Calendar, LogOut, X, Menu, Megaphone, Trophy } from 'lucide-react';
 import { useAppContext } from '../contexts/AppContext';
 import LogoutModal from './LogoutModal';
 
@@ -23,6 +23,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Comments', path: '/admin/comments', icon: MessageSquare },
     { name: 'Events', path: '/admin/events', icon: Calendar },
     { name: 'Notifications', path: '/admin/notifications', icon: Megaphone },
+    { name: 'Top 10', path: '/admin/top10', icon: Trophy },
     { name: 'Logout', path: '#', icon: LogOut, onClick: () => setIsModalOpen(true) },
   ];
 
@@ -66,7 +67,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       </div>
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 md:hidden z-20"
+          className="fixed inset-0 bg-black/30 bg-opacity-50 md:hidden z-20"
           onClick={toggleSidebar}
         />
       )}
