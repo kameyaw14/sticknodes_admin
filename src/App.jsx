@@ -12,6 +12,9 @@ import { useAppContext } from "./contexts/AppContext";
 import VideoDetail from "./pages/VideoDetail";
 import NotificationsPage from "./pages/NotificationsPage";
 import Top10Manager from "./pages/Top10";
+import BestOfTheWeek from "./pages/BestOfTheWeek";
+import AddNominees from "./pages/AddNominees";
+import CurrentWeekManager from "./pages/CurrentWeekManager";
 
 const App = () => {
   const { admin } = useAppContext();
@@ -34,6 +37,11 @@ const App = () => {
                   <Route path="events" element={<Events />} />
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="top10" element={<Top10Manager />} />
+
+                  <Route path="best-of-the-week" element={<BestOfTheWeek />} />
+                  <Route path="best-of-the-week/add-nominees" element={<AddNominees />} />
+                   <Route path="best-of-the-week/current" element={<CurrentWeekManager />} />
+                   {/* <Route path="best-of-the-week/past" element={<PastWeeks />} />  */}
                 </Routes>
               </Layout>
             </ProtectedAdminRoute>

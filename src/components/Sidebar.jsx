@@ -23,7 +23,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Comments', path: '/admin/comments', icon: MessageSquare },
     { name: 'Events', path: '/admin/events', icon: Calendar },
     { name: 'Notifications', path: '/admin/notifications', icon: Megaphone },
-    { name: 'Top 10', path: '/admin/top10', icon: Trophy },
+    { name: 'Best Of The Week', path: '/admin/best-of-the-week', icon: Trophy },
     { name: 'Logout', path: '#', icon: LogOut, onClick: () => setIsModalOpen(true) },
   ];
 
