@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
-import { Trophy, Plus, Calendar, Users, Clock, CheckCircle } from "lucide-react";
+import {
+  Trophy,
+  Plus,
+  Calendar,
+  Users,
+  Clock,
+  CheckCircle,
+} from "lucide-react";
 import { useAppContext } from "../contexts/AppContext";
 import { toast } from "sonner";
 
@@ -26,10 +33,10 @@ const BestOfTheWeek = () => {
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(() => {
-  const nextMon = getNextMonday();
-  // Format YYYY-MM-DD safely in local timezone
-  return nextMon.toISOString().split('T')[0];
-});
+    const nextMon = getNextMonday();
+    // Format YYYY-MM-DD safely in local timezone
+    return nextMon.toISOString().split("T")[0];
+  });
   const [creating, setCreating] = useState(false);
 
   // Fetch all weeks on mount
@@ -41,7 +48,7 @@ const BestOfTheWeek = () => {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
 
-        console.log('weeks: ',res.data)
+        console.log("weeks: ", res.data);
         setWeeksData({
           activeWeek: res.data.activeWeek,
           pastWeeks: res.data.pastWeeks,
@@ -63,10 +70,11 @@ const BestOfTheWeek = () => {
     if (creating) return;
 
     const startDate = new Date(selectedDate); // browser parses YYYY-MM-DD as local midnight
-if (startDate.getUTCDay() !== 1) { // still checks UTC day — Monday is Monday everywhere
-  toast.error("Week must start on a Monday bro!");
-  return;
-}
+    if (startDate.getUTCDay() !== 1) {
+      // still checks UTC day — Monday is Monday everywhere
+      toast.error("Week must start on a Monday bro!");
+      return;
+    }
     try {
       setCreating(true);
       await axios.post(
@@ -98,18 +106,21 @@ if (startDate.getUTCDay() !== 1) { // still checks UTC day — Monday is Monday 
     if (!weeksData) return null;
 
     // Priority: any OPEN week → most important
-    const openWeek = weeksData.pastWeeks.find(w => w.votingStatus === "OPEN");
+    const openWeek = weeksData.pastWeeks.find((w) => w.votingStatus === "OPEN");
     if (openWeek) return { week: openWeek, type: "open" };
 
     // Then CLOSED (ready to publish)
-    const closedWeek = weeksData.pastWeeks.find(w => w.votingStatus === "CLOSED");
+    const closedWeek = weeksData.pastWeeks.find(
+      (w) => w.votingStatus === "CLOSED"
+    );
     if (closedWeek) return { week: closedWeek, type: "closed" };
 
     // Then latest PENDING
     const pendingWeeks = weeksData.pastWeeks
-      .filter(w => w.votingStatus === "PENDING")
+      .filter((w) => w.votingStatus === "PENDING")
       .sort((a, b) => new Date(b.weekStart) - new Date(a.weekStart));
-    if (pendingWeeks.length > 0) return { week: pendingWeeks[0], type: "pending" };
+    if (pendingWeeks.length > 0)
+      return { week: pendingWeeks[0], type: "pending" };
 
     return null;
   };
@@ -165,8 +176,13 @@ if (startDate.getUTCDay() !== 1) { // still checks UTC day — Monday is Monday 
                     <div>
                       <p className="text-gray-600">Week</p>
                       <p className="text-xl font-semibold">
-                        {new Date(weeksData.activeWeek.weekStart).toLocaleDateString()} -{" "}
-                        {new Date(weeksData.activeWeek.weekEnd).toLocaleDateString()}
+                        {new Date(
+                          weeksData.activeWeek.weekStart
+                        ).toLocaleDateString()}{" "}
+                        -{" "}
+                        {new Date(
+                          weeksData.activeWeek.weekEnd
+                        ).toLocaleDateString()}
                       </p>
                     </div>
                     {weeksData.activeWeek.videos?.[0]?.video && (
@@ -182,7 +198,9 @@ if (startDate.getUTCDay() !== 1) { // still checks UTC day — Monday is Monday 
                         </div>
                         <div className="flex justify-center">
                           <img
-                            src={weeksData.activeWeek.videos[0].video.thumbnailUrl}
+                            src={
+                              weeksData.activeWeek.videos[0].video.thumbnailUrl
+                            }
                             alt="Winner"
                             className="w-32 h-32 object-cover rounded-xl shadow-md"
                           />
@@ -201,11 +219,15 @@ if (startDate.getUTCDay() !== 1) { // still checks UTC day — Monday is Monday 
                 </h2>
 
                 {current ? (
-                  <div className="space-y-4">
+                  <div className="space-y-6">
+                    {/* NO CHANGES — week info display */}
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-lg font-medium">
-                          Week of {new Date(current.week.weekStart).toLocaleDateString()}
+                          Week of{" "}
+                          {new Date(
+                            current.week.weekStart
+                          ).toLocaleDateString()}
                         </p>
                         <p className="text-gray-600">
                           {current.week.nominees?.length || 0} nominees •{" "}
@@ -224,8 +246,76 @@ if (startDate.getUTCDay() !== 1) { // still checks UTC day — Monday is Monday 
                         {current.week.votingStatus.toUpperCase()}
                       </span>
                     </div>
+
+                    {/* NEW ADDITION: Open Voting button — only show when PENDING bro! */}
+                    {current.type === "pending" && (
+                      <div className="flex justify-end">
+                        <button
+                          onClick={async () => {
+                            // NEW: Open voting handler — secure, disabled when loading, toast feedback
+                            if (loading) return; // don't spam bro
+
+                            try {
+                              setLoading(true);
+                              await axios.put(
+                                `${BASE_URL}admin/top10/week/${current.week.id}/open-voting`,
+                                {}, // no body needed
+                                {
+                                  headers: {
+                                    Authorization: `Bearer ${accessToken}`,
+                                  },
+                                }
+                              );
+
+                              toast.success(
+                                "VOTING IS NOW OPEN! Let the chaos begin 🔥"
+                              );
+
+                              // Refresh weeks to update status
+                              const res = await axios.get(
+                                `${BASE_URL}admin/top10`,
+                                {
+                                  headers: {
+                                    Authorization: `Bearer ${accessToken}`,
+                                  },
+                                }
+                              );
+                              setWeeksData({
+                                activeWeek: res.data.activeWeek,
+                                pastWeeks: res.data.pastWeeks,
+                              });
+                            } catch (err) {
+                              toast.error(
+                                err.response?.data?.message ||
+                                  "Failed to open voting — server said nah"
+                              );
+                            } finally {
+                              setLoading(false);
+                            }
+                          }}
+                          disabled={loading} // bro rule: disable when loading
+                          className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                        >
+                          <Trophy className="w-6 h-6" />
+                          {loading ? "Opening..." : "Open Voting Now"}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* OPTIONAL: Show message if already open/closed — helps admin know what's up */}
+                    {current.type === "open" && (
+                      <p className="text-green-700 font-medium text-center">
+                        Voting is LIVE — community is battling it out!
+                      </p>
+                    )}
+                    {current.type === "closed" && (
+                      <p className="text-orange-700 font-medium text-center">
+                        Voting closed — ready to publish results?
+                      </p>
+                    )}
                   </div>
                 ) : (
+                  /* NO CHANGES — empty state */
                   <p className="text-gray-600 italic">
                     No active voting week right now. Create one to get started!
                   </p>
@@ -250,7 +340,9 @@ if (startDate.getUTCDay() !== 1) { // still checks UTC day — Monday is Monday 
                   className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition text-center border border-gray-200"
                 >
                   <Calendar className="w-12 h-12 text-green-600 mx-auto mb-4" />
-                  <h3 className="text-xl font-bold mb-2">Manage Current Week</h3>
+                  <h3 className="text-xl font-bold mb-2">
+                    Manage Current Week
+                  </h3>
                   <p className="text-gray-600">
                     Open/close voting, publish results
                   </p>
@@ -284,7 +376,9 @@ if (startDate.getUTCDay() !== 1) { // still checks UTC day — Monday is Monday 
           {/* Modal */}
           <div className="fixed inset-0 flex items-center justify-center z-50 px-4">
             <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
-              <h2 className="text-2xl font-bold mb-6">Create New Top 10 Week</h2>
+              <h2 className="text-2xl font-bold mb-6">
+                Create New Top 10 Week
+              </h2>
 
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -296,11 +390,12 @@ if (startDate.getUTCDay() !== 1) { // still checks UTC day — Monday is Monday 
                   onChange={(e) => setSelectedDate(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
-                {new Date(selectedDate + "T00:00:00Z").getUTCDay() !== 1 && selectedDate && (
-                  <p className="text-red-600 text-sm mt-2">
-                    Please select a Monday
-                  </p>
-                )}
+                {new Date(selectedDate + "T00:00:00Z").getUTCDay() !== 1 &&
+                  selectedDate && (
+                    <p className="text-red-600 text-sm mt-2">
+                      Please select a Monday
+                    </p>
+                  )}
               </div>
 
               <div className="flex gap-4 justify-end">
