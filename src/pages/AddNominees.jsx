@@ -180,8 +180,8 @@ const AddNominees = () => {
       setCurrentNominees((prev) => [...prev, videoId]);
       setNomineeCount((prev) => prev + 1);
       const msg = "Nominee added! Ready for battle 🔥"
-      toast.success(msg);
-      alert(msg);
+    //   toast.success(msg);
+    //   alert(msg);
 
     } catch (err) {
       console.error("Add nominee error:", err);
