@@ -1,20 +1,11 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useAppContext } from "../contexts/AppContext";
-import { toast } from "sonner"; // NO CHANGES: Toast notifications
-import { Search, CheckCircle, Ban, UserX } from "lucide-react"; // NO CHANGES: Icons for actions
-
-// NO CHANGES: Color definitions
-const COLORS = {
-  background: "#F5F7FA",
-  primary: "#2B6CB0",
-  secondary: "#38A169",
-  text: "#1A202C",
-  error: "#E53E3E",
-};
+import { toast } from "sonner";
+import { Search, CheckCircle, Ban, UserX, Loader2 } from "lucide-react";
 
 const Users = () => {
-  // NO CHANGES: State definitions
-  const { accessToken, refreshAdminToken, adminLogout,BASE_URL } = useAppContext();
+  const { accessToken, refreshAdminToken, adminLogout, BASE_URL } = useAppContext();
+
   const [users, setUsers] = useState([]);
   const [pagination, setPagination] = useState({
     total: 0,
@@ -24,6 +15,7 @@ const Users = () => {
     hasNextPage: false,
     hasPrevPage: false,
   });
+
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState({
     isVerified: "",
@@ -31,502 +23,591 @@ const Users = () => {
     endDate: "",
     sortByFollowers: false,
   });
-  const [selectedUser, setSelectedUser] = useState(null); // For user details modal
-  const [isModalOpen, setIsModalOpen] = useState(false); // Modal visibility
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false); // Confirmation dialog for actions
-  const [actionType, setActionType] = useState(""); // Track action (verify/unverify)
-  const [isLoading, setIsLoading] = useState(false); // Loading state for API calls
-  const [editBio, setEditBio] = useState(""); // Bio for editing
 
-  // NO CHANGES: Fetch users from API
-  const fetchUsers = useCallback(async (page = 1, params = {}) => {
-    setIsLoading(true);
-    try {
-      // NEW ADDITION: Use URLSearchParams to handle query parameters correctly
-      const query = new URLSearchParams({
-        page,
-        limit: 10,
-        ...params,
-      }).toString();
-      const response = await fetch(`${BASE_URL}admin/users?${query}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }).then(res => res.json());
-      console.log(response);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userVideos, setUserVideos] = useState([]);
+  const [videoPagination, setVideoPagination] = useState({
+    total: 0,
+    totalPages: 1,
+    currentPage: 1,
+    limit: 10,
+  });
 
-      let retryResponse;
-      if (!response.success) {
-        if (response.status === 401) {
-          const newToken = await refreshAdminToken();
-          if (newToken) {
-            retryResponse = await fetch(`${BASE_URL}admin/users?${query}`, {
-              headers: { Authorization: `Bearer ${newToken}` },
-            }).then(res => res.json());
-            if (retryResponse.success) {
-              setUsers(retryResponse.data.users);
-              setPagination(retryResponse.data.pagination);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [actionType, setActionType] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [editBio, setEditBio] = useState("");
+
+  // Lock body scroll when any modal is open
+  useEffect(() => {
+    if (isModalOpen || isConfirmOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [isModalOpen, isConfirmOpen]);
+
+  // Fetch users list
+  const fetchUsers = useCallback(
+    async (page = 1, params = {}) => {
+      setIsLoading(true);
+      try {
+        const query = new URLSearchParams({
+          page: page.toString(),
+          limit: "10",
+          ...params,
+        }).toString();
+
+        const response = await fetch(`${BASE_URL}admin/users?${query}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }).then((res) => res.json());
+
+        if (!response.success) {
+          if (response.status === 401) {
+            const newToken = await refreshAdminToken();
+            if (newToken) {
+              const retry = await fetch(`${BASE_URL}admin/users?${query}`, {
+                headers: { Authorization: `Bearer ${newToken}` },
+              }).then((res) => res.json());
+              if (retry.success) {
+                setUsers(retry.data.users);
+                setPagination(retry.data.pagination);
+              } else {
+                toast.error(retry.message || "Authentication failed");
+                adminLogout();
+              }
             } else {
-              toast.error(retryResponse.message);
               adminLogout();
             }
           } else {
-            adminLogout();
+            toast.error(response.message || "Failed to fetch users");
           }
         } else {
-          toast.error(response.message);
+          setUsers(response.data.users);
+          setPagination(response.data.pagination);
         }
-      } else {
-        setUsers(response.data.users);
-        setPagination(retryResponse?.data?.pagination);
+      } catch (error) {
+        console.error("Fetch users error:", error);
+        toast.error("Network error while fetching users");
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error("Fetch users error:", error);
-      toast.error("Failed to fetch users");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [accessToken, refreshAdminToken, adminLogout]);
+    },
+    [accessToken, refreshAdminToken, adminLogout, BASE_URL]
+  );
 
-  // NO CHANGES: Fetch user details for modal
-  const fetchUserDetails = useCallback(async (userId) => {
-    try {
-      const response = await fetch(`${BASE_URL}admin/users/${userId}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }).then(res => res.json());
+  // Fetch user details + videos (with pagination)
+  const fetchUserDetails = useCallback(
+    async (userId, videoPage = 1) => {
+      try {
+        const query = new URLSearchParams({ page: videoPage.toString(), limit: "10" }).toString();
+        const response = await fetch(`${BASE_URL}admin/users/${userId}?${query}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }).then((res) => res.json());
 
-      if (!response.success) {
-        if (response.status === 401) {
-          const newToken = await refreshAdminToken();
-          if (newToken) {
-            const retryResponse = await fetch(`${BASE_URL}admin/users/${userId}`, {
-              headers: { Authorization: `Bearer ${newToken}` },
-            }).then(res => res.json());
-            if (retryResponse.success) {
-              setSelectedUser(retryResponse.data);
-              setEditBio(retryResponse.data.user.bio);
-              setIsModalOpen(true);
+        if (!response.success) {
+          if (response.status === 401) {
+            const newToken = await refreshAdminToken();
+            if (newToken) {
+              const retry = await fetch(`${BASE_URL}admin/users/${userId}?${query}`, {
+                headers: { Authorization: `Bearer ${newToken}` },
+              }).then((res) => res.json());
+              if (retry.success) {
+                setSelectedUser(retry.data.user);
+                setUserVideos(retry.data.videos);
+                setVideoPagination(retry.data.pagination);
+                setEditBio(retry.data.user.bio || "");
+                setIsModalOpen(true);
+              } else {
+                toast.error(retry.message || "Failed to load user details");
+              }
             } else {
-              toast.error(retryResponse.message);
+              adminLogout();
             }
           } else {
-            adminLogout();
+            toast.error(response.message || "Failed to load user details");
           }
         } else {
-          toast.error(response.message);
+          setSelectedUser(response.data.user);
+          setUserVideos(response.data.videos);
+          setVideoPagination(response.data.pagination);
+          setEditBio(response.data.user.bio || "");
+          setIsModalOpen(true);
         }
-      } else {
-        setSelectedUser(response.data);
-        setEditBio(response.data.user.bio);
-        setIsModalOpen(true);
+      } catch (error) {
+        console.error("Fetch user details error:", error);
+        toast.error("Network error while loading user details");
       }
-    } catch (error) {
-      console.error("Fetch user details error:", error);
-      toast.error("Failed to fetch user details");
-    }
-  }, [accessToken, refreshAdminToken, adminLogout]);
+    },
+    [accessToken, refreshAdminToken, adminLogout, BASE_URL]
+  );
 
-  // NO CHANGES: Handle user update (bio or verification status)
+  // Handle update (bio + verification)
   const handleUpdateUser = async () => {
+    if (!selectedUser) return;
+    setIsUpdating(true);
     try {
-      const response = await fetch(`${BASE_URL}admin/users/${selectedUser.user._id}`, {
+      const payload = {
+        bio: editBio,
+      };
+      if (actionType === "verify") payload.isVerified = true;
+      if (actionType === "unverify") payload.isVerified = false;
+
+      const response = await fetch(`${BASE_URL}admin/users/${selectedUser.id}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          bio: editBio,
-          isVerified: actionType === "verify" ? true : actionType === "unverify" ? false : undefined,
-        }),
-      }).then(res => res.json());
+        body: JSON.stringify(payload),
+      }).then((res) => res.json());
 
       if (!response.success) {
         if (response.status === 401) {
           const newToken = await refreshAdminToken();
           if (newToken) {
-            const retryResponse = await fetch(`${BASE_URL}admin/users/${selectedUser.user._id}`, {
+            const retry = await fetch(`${BASE_URL}admin/users/${selectedUser.id}`, {
               method: "PUT",
               headers: {
                 Authorization: `Bearer ${newToken}`,
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify({
-                bio: editBio,
-                isVerified: actionType === "verify" ? true : actionType === "unverify" ? false : undefined,
-              }),
-            }).then(res => res.json());
-            if (retryResponse.success) {
-              setSelectedUser({ ...selectedUser, user: retryResponse.user });
-              setIsModalOpen(false);
-              setIsConfirmOpen(false);
-              fetchUsers(pagination.currentPage, filters);
+              body: JSON.stringify(payload),
+            }).then((res) => res.json());
+
+            if (retry.success) {
               toast.success("User updated successfully");
+              setIsConfirmOpen(false);
+              fetchUsers(pagination.currentPage, { ...filters, search });
+              fetchUserDetails(selectedUser.id, videoPagination.currentPage);
             } else {
-              toast.error(retryResponse.message);
+              toast.error(retry.message || "Update failed");
             }
           } else {
             adminLogout();
           }
         } else {
-          toast.error(response.message);
+          toast.error(response.message || "Update failed");
         }
       } else {
-        setSelectedUser({ ...selectedUser, user: response.user });
-        setIsModalOpen(false);
-        setIsConfirmOpen(false);
-        fetchUsers(pagination.currentPage, filters);
         toast.success("User updated successfully");
+        setIsConfirmOpen(false);
+        fetchUsers(pagination.currentPage, { ...filters, search });
+        fetchUserDetails(selectedUser.id, videoPagination.currentPage);
       }
     } catch (error) {
       console.error("Update user error:", error);
-      toast.error("Failed to update user");
+      toast.error("Network error during update");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
-  // NO CHANGES: Handle search and filter changes
+  // Manual search
   const handleSearch = () => {
-    fetchUsers(1, { ...filters, search });
+    fetchUsers(1, { ...filters, search: search.trim() || undefined });
   };
 
-  // NO CHANGES: Handle filter changes
+  // Filter change
   const handleFilterChange = (key, value) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
-    fetchUsers(1, { ...filters, [key]: value, search });
+    const newFilters = { ...filters, [key]: value };
+    setFilters(newFilters);
+    fetchUsers(1, { ...newFilters, search: search.trim() || undefined });
   };
 
-  // NO CHANGES: Handle pagination
+  // Pagination
   const handlePageChange = (page) => {
-    fetchUsers(page, { ...filters, search });
+    fetchUsers(page, { ...filters, search: search.trim() || undefined });
   };
 
-  // NO CHANGES: Initial fetch of users
+  const handleVideoPageChange = (page) => {
+    if (selectedUser) {
+      fetchUserDetails(selectedUser.id, page);
+    }
+  };
+
+  // Initial load
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
 
   return (
-    <div className="max-w-4xl mx-auto p-4" style={{ background: COLORS.background }}>
-      {/* NO CHANGES: Title */}
-      <h2 className="text-2xl font-semibold mb-4" style={{ color: COLORS.text }}>
-        Users Management
-      </h2>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4">
+      <div className="max-w-7xl mx-auto">
+        <h2 className="text-3xl font-bold text-gray-900 mb-8">Users Management</h2>
 
-      {/* NO CHANGES: Search and filters using native input and select */}
-      <div className="mb-4 flex space-x-4">
-        <div className="flex-1">
-          <input
-            type="text"
-            placeholder="Search by name, email, or ID"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyPress={(e) => e.key === "Enter" && handleSearch()}
-            style={{
-              padding: "8px",
-              borderRadius: "4px",
-              border: "1px solid #ccc",
-              width: "100%",
-              boxSizing: "border-box",
-            }}
-          />
-        </div>
-        <button
-          onClick={handleSearch}
-          style={{
-            padding: "8px 16px",
-            borderRadius: "4px",
-            border: "none",
-            background: COLORS.primary,
-            color: "white",
-            cursor: "pointer",
-          }}
-        >
-          Search
-        </button>
-        <select
-          value={filters.isVerified}
-          onChange={(e) => handleFilterChange("isVerified", e.target.value)}
-          style={{ padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
-        >
-          <option value="">All</option>
-          <option value="true">Verified</option>
-          <option value="false">Unverified</option>
-        </select>
-        <select
-          value={filters.sortByFollowers ? "true" : ""}
-          onChange={(e) => handleFilterChange("sortByFollowers", e.target.value === "true")}
-          style={{ padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
-        >
-          <option value="">Newest</option>
-          <option value="true">Most Followers</option>
-        </select>
-      </div>
-
-      {/* NO CHANGES: Date range filters using native input */}
-      <div className="mb-4 flex space-x-4">
-        <input
-          type="date"
-          value={filters.startDate}
-          onChange={(e) => handleFilterChange("startDate", e.target.value)}
-          style={{
-            padding: "8px",
-            borderRadius: "4px",
-            border: "1px solid #ccc",
-            width: "100%",
-            boxSizing: "border-box",
-          }}
-        />
-        <input
-          type="date"
-          value={filters.endDate}
-          onChange={(e) => handleFilterChange("endDate", e.target.value)}
-          style={{
-            padding: "8px",
-            borderRadius: "4px",
-            border: "1px solid #ccc",
-            width: "100%",
-            boxSizing: "border-box",
-          }}
-        />
-      </div>
-
-      {/* NEW ADDITION: Simple table instead of virtualized list */}
-      <div className="border rounded">
-        <div className="flex font-semibold bg-gray-100 py-2">
-          <div className="w-1/4 px-4">Name</div>
-          <div className="w-1/4 px-4">Email</div>
-          <div className="w-1/4 px-4">Verification Status</div>
-          <div className="w-1/4 px-4">Actions</div>
-          <div className="w-1/4 px-4">Date Joined</div>
-        </div>
-        {isLoading ? (
-          <div className="flex justify-center py-4">Loading...</div>
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <tbody>
-              {users.map(user => (
-                <tr key={user._id} style={{ borderBottom: "1px solid #ccc" }}>
-                  <td className="w-1/4 px-4 py-2">{user.name}</td>
-                  <td className="w-1/4 px-4 py-2">{user.email}</td>
-                  <td className="w-1/4 px-4 py-2">{user.isVerified ? "Verified" : "Unverified"}</td>
-                  <td className="w-1/4 px-4 py-2 flex space-x-2">
-                    <button
-                      onClick={() => fetchUserDetails(user._id)}
-                      className="text-blue-500 hover:text-blue-700"
-                      title="View Details"
-                    >
-                      <Search size={20} />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setActionType(user.isVerified ? "unverify" : "verify");
-                        setIsConfirmOpen(true);
-                        setSelectedUser({ user });
-                      }}
-                      className="text-green-500 hover:text-green-700"
-                      title={user.isVerified ? "Unverify" : "Verify"}
-                    >
-                      <CheckCircle size={20} />
-                    </button>
-                    <button
-                      disabled
-                      className="text-red-500 hover:text-red-700 opacity-50 cursor-not-allowed"
-                      title="Ban (Coming Soon)"
-                    >
-                      <Ban size={20} />
-                    </button>
-                    <button
-                      disabled
-                      className="text-red-500 hover:text-red-700 opacity-50 cursor-not-allowed"
-                      title="Delete (Coming Soon)"
-                    >
-                      <UserX size={20} />
-                    </button>
-                  </td>
-                  <td className="w-1/4 px-4 py-2">{new Date(user.createdAt).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* NO CHANGES: Pagination controls using native button */}
-      <div className="mt-4 flex justify-between">
-        <button
-          disabled={!pagination?.hasPrevPage} 
-          onClick={() => handlePageChange(pagination.currentPage - 1)}
-          style={{
-            padding: "8px 16px",
-            borderRadius: "4px",
-            border: "none",
-            background: pagination?.hasPrevPage ? COLORS.primary : "gray",
-            color: "white",
-            cursor: pagination?.hasPrevPage ? "pointer" : "not-allowed",
-          }}
-        >
-          Previous
-        </button>
-        <span>
-          Page {pagination?.currentPage} of {pagination?.totalPages}
-        </span>
-        <button
-          disabled={!pagination?.hasNextPage}
-          onClick={() => handlePageChange(pagination?.currentPage + 1)}
-          style={{
-            padding: "8px 16px",
-            borderRadius: "4px",
-            border: "none",
-            background: pagination?.hasNextPage ? COLORS.primary : "gray",
-            color: "white",
-            cursor: pagination?.hasNextPage ? "pointer" : "not-allowed",
-          }}
-        >
-          Next
-        </button>
-      </div>
-
-      {/* NO CHANGES: User details modal using div and CSS */}
-      {selectedUser && isModalOpen && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              background: "white",
-              padding: "20px",
-              borderRadius: "8px",
-              maxWidth: "500px",
-              width: "90%",
-              maxHeight: "80vh",
-              overflowY: "auto",
-            }}
-          >
-            <h3 style={{ color: COLORS.text, fontSize: "1.5rem", marginBottom: "16px" }}>
-              User Details
-            </h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <div>
-                <strong>Name:</strong> {selectedUser.user.name}
-              </div>
-              <div>
-                <strong>Email:</strong> {selectedUser.user.email}
-              </div>
-              <div>
-                <strong>Bio:</strong>
+        {/* Search & Filters */}
+        <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="lg:col-span-2">
+              <div className="relative">
                 <input
                   type="text"
-                  value={editBio}
-                  onChange={(e) => setEditBio(e.target.value)}
-                  placeholder="Edit bio"
-                  style={{
-                    padding: "8px",
-                    borderRadius: "4px",
-                    border: "1px solid #ccc",
-                    width: "100%",
-                    boxSizing: "border-box",
-                  }}
+                  placeholder="Search by name, email, or ID"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={isLoading}
                 />
+                <Search className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
               </div>
-              <div>
-                <strong>Verification Status:</strong> {selectedUser.user.isVerified ? "Verified" : "Unverified"}
-              </div>
-              <div>
-                <strong>Registered:</strong> {new Date(selectedUser.user.createdAt).toLocaleDateString()}
-              </div>
-              <div>
-                <strong>Last Login:</strong> {new Date(selectedUser.user.lastLogin).toLocaleDateString()}
-              </div>
-              <div>
-                <strong>Followers:</strong> {selectedUser.user.followerCount}
-              </div>
-              <div>
-                <strong>Following:</strong> {selectedUser.user.followingCount}
-              </div>
-              <div>
-                <strong>Videos:</strong>
-                {selectedUser.videos.length > 0 ? (
-                  <ul style={{ listStyleType: "disc", paddingLeft: "20px" }}>
-                    {selectedUser.videos.map(video => (
-                      <li key={video._id}>
-                        {video.title} ({new Date(video.createdAt).toLocaleDateString()})
-                      </li>
-                    ))}
-                  </ul>
+            </div>
+
+            <button
+              onClick={handleSearch}
+              disabled={isLoading}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+            >
+              {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+              Search
+            </button>
+
+            <select
+              value={filters.isVerified}
+              onChange={(e) => handleFilterChange("isVerified", e.target.value)}
+              disabled={isLoading}
+              className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Verification</option>
+              <option value="true">Verified</option>
+              <option value="false">Unverified</option>
+            </select>
+
+            <select
+              value={filters.sortByFollowers ? "true" : ""}
+              onChange={(e) => handleFilterChange("sortByFollowers", e.target.value === "true")}
+              disabled={isLoading}
+              className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Newest First</option>
+              <option value="true">Most Followers</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <input
+              type="date"
+              value={filters.startDate}
+              onChange={(e) => handleFilterChange("startDate", e.target.value)}
+              disabled={isLoading}
+              className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <input
+              type="date"
+              value={filters.endDate}
+              onChange={(e) => handleFilterChange("endDate", e.target.value)}
+              disabled={isLoading}
+              className="px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
+        {/* Users Table */}
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    User
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Email
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Followers
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Joined
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {isLoading ? (
+                  Array(10)
+                    .fill(0)
+                    .map((_, i) => (
+                      <tr key={i}>
+                        <td colSpan={6} className="px-6 py-8">
+                          <div className="animate-pulse flex items-center space-x-4">
+                            <div className="rounded-full bg-gray-300 h-10 w-10"></div>
+                            <div className="flex-1 space-y-2">
+                              <div className="h-4 bg-gray-300 rounded w-48"></div>
+                              <div className="h-3 bg-gray-300 rounded w-32"></div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                ) : users.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                      No users found matching your criteria
+                    </td>
+                  </tr>
                 ) : (
-                  "No videos"
+                  users.map((user) => (
+                    <tr key={user.id} className="hover:bg-gray-50 transition">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <img
+                            src={user.avatarUrl || "https://via.placeholder.com/40"}
+                            alt={user.name}
+                            className="h-10 w-10 rounded-full object-cover border-2 border-gray-200"
+                          />
+                          <div className="ml-4">
+                            <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{user.email}</td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            user.isVerified
+                              ? "bg-green-100 text-green-800"
+                              : "bg-yellow-100 text-yellow-800"
+                          }`}
+                        >
+                          {user.isVerified ? "Verified" : "Unverified"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{user.followerCount}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {new Date(user.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => fetchUserDetails(user.id)}
+                            className="text-blue-600 hover:text-blue-800"
+                            title="View Details"
+                          >
+                            <Search className="h-5 w-5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setActionType(user.isVerified ? "unverify" : "verify");
+                              setIsConfirmOpen(true);
+                            }}
+                            className="text-green-600 hover:text-green-800"
+                            title={user.isVerified ? "Unverify" : "Verify"}
+                          >
+                            <CheckCircle className="h-5 w-5" />
+                          </button>
+                          <button
+                            disabled
+                            className="text-red-400 cursor-not-allowed opacity-50"
+                            title="Ban (Not Implemented)"
+                          >
+                            <Ban className="h-5 w-5" />
+                          </button>
+                          <button
+                            disabled
+                            className="text-red-400 cursor-not-allowed opacity-50"
+                            title="Delete (Not Implemented)"
+                          >
+                            <UserX className="h-5 w-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {!isLoading && pagination.totalPages > 1 && (
+            <div className="bg-gray-50 px-6 py-4 flex items-center justify-between border-t border-gray-200">
+              <button
+                onClick={() => handlePageChange(pagination.currentPage - 1)}
+                disabled={!pagination.hasPrevPage || isLoading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+              >
+                Previous
+              </button>
+              <span className="text-sm text-gray-700">
+                Page {pagination.currentPage} of {pagination.totalPages}
+              </span>
+              <button
+                onClick={() => handlePageChange(pagination.currentPage + 1)}
+                disabled={!pagination.hasNextPage || isLoading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* User Details Modal */}
+      {isModalOpen && selectedUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-md"
+            onClick={() => setIsModalOpen(false)}
+          />
+          <div className="relative bg-white rounded-2xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-8 overflow-y-auto flex-1">
+              <div className="text-center mb-8">
+                <img
+                  src={selectedUser.avatarUrl || "https://via.placeholder.com/150"}
+                  alt={selectedUser.name}
+                  className="h-32 w-32 rounded-full object-cover mx-auto border-4 border-gray-200 shadow-lg"
+                />
+                <h3 className="text-2xl font-bold text-gray-900 mt-4">{selectedUser.name}</h3>
+                <p className="text-gray-600">{selectedUser.email}</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div>
+                  <span className="text-sm font-medium text-gray-500">Bio</span>
+                  <textarea
+                    value={editBio}
+                    onChange={(e) => setEditBio(e.target.value)}
+                    rows={3}
+                    className="mt-1 w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Verification Status</span>
+                    <p className="mt-1 text-lg">
+                      <span
+                        className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
+                          selectedUser.isVerified
+                            ? "bg-green-100 text-green-800"
+                            : "bg-yellow-100 text-yellow-800"
+                        }`}
+                      >
+                        {selectedUser.isVerified ? "Verified" : "Unverified"}
+                      </span>
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Followers</span>
+                    <p className="mt-1 text-lg font-semibold">{selectedUser.followerCount}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Following</span>
+                    <p className="mt-1 text-lg font-semibold">{selectedUser.followingCount}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Joined</span>
+                    <p className="mt-1">{new Date(selectedUser.createdAt).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Last Login</span>
+                    <p className="mt-1">{new Date(selectedUser.lastLogin).toLocaleDateString()}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xl font-semibold mb-4">Uploaded Videos ({videoPagination.total})</h4>
+                {userVideos.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">No videos uploaded yet</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {userVideos.map((video) => {
+                      let statusColor = "bg-orange-100 text-orange-800";
+                      let statusText = "Pending";
+                      if (video.isApproved) {
+                        statusColor = "bg-green-100 text-green-800";
+                        statusText = "Approved";
+                      } else if (video.isRejected) {
+                        statusColor = "bg-red-100 text-red-800";
+                        statusText = "Rejected";
+                      }
+
+                      return (
+                        <div key={video.id} className="bg-gray-50 rounded-xl overflow-hidden shadow hover:shadow-md transition">
+                          <img
+                            src={video.thumbnailUrl}
+                            alt={video.title}
+                            className="w-full h-48 object-cover"
+                          />
+                          <div className="p-4">
+                            <h5 className="font-medium text-gray-900 truncate">{video.title}</h5>
+                            <div className="flex items-center justify-between mt-2">
+                              <span className={`text-xs font-medium px-2 py-1 rounded-full ${statusColor}`}>
+                                {statusText}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {new Date(video.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Video Pagination */}
+                {videoPagination.totalPages > 1 && (
+                  <div className="mt-8 flex justify-center gap-4">
+                    <button
+                      onClick={() => handleVideoPageChange(videoPagination.currentPage - 1)}
+                      disabled={videoPagination.currentPage === 1}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    <span className="py-2 text-gray-700">
+                      Page {videoPagination.currentPage} of {videoPagination.totalPages}
+                    </span>
+                    <button
+                      onClick={() => handleVideoPageChange(videoPagination.currentPage + 1)}
+                      disabled={videoPagination.currentPage === videoPagination.totalPages}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
-            <div style={{ display: "flex", gap: "8px", marginTop: "16px", justifyContent: "flex-end" }}>
+
+            {/* Modal Actions */}
+            <div className="border-t border-gray-200 px-8 py-5 flex justify-end gap-4 bg-gray-50">
               <button
                 onClick={() => {
-                  setActionType(selectedUser.user.isVerified ? "unverify" : "verify");
+                  setActionType(selectedUser.isVerified ? "unverify" : "verify");
                   setIsConfirmOpen(true);
                 }}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: "4px",
-                  border: "none",
-                  background: COLORS.secondary,
-                  color: "white",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                }}
+                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2"
               >
-                <CheckCircle size={20} style={{ marginRight: "8px" }} />
-                {selectedUser.user.isVerified ? "Unverify" : "Verify"}
+                <CheckCircle className="h-5 w-5" />
+                {selectedUser.isVerified ? "Unverify" : "Verify"} User
               </button>
               <button
-                disabled
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: "4px",
-                  border: "none",
-                  background: COLORS.error,
-                  color: "white",
-                  opacity: 0.5,
-                  cursor: "not-allowed",
-                  display: "flex",
-                  alignItems: "center",
-                }}
+                onClick={handleUpdateUser}
+                disabled={isUpdating}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition flex items-center gap-2"
               >
-                <Ban size={20} style={{ marginRight: "8px" }} />
-                Ban (Coming Soon)
-              </button>
-              <button
-                onClick={() => handleUpdateUser()}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: "4px",
-                  border: "none",
-                  background: COLORS.primary,
-                  color: "white",
-                  cursor: "pointer",
-                }}
-              >
+                {isUpdating && <Loader2 className="h-4 w-4 animate-spin" />}
                 Save Changes
               </button>
               <button
                 onClick={() => setIsModalOpen(false)}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: "4px",
-                  border: "none",
-                  background: "gray",
-                  color: "white",
-                  cursor: "pointer",
-                }}
+                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
               >
                 Close
               </button>
@@ -535,60 +616,31 @@ const Users = () => {
         </div>
       )}
 
-      {/* NO CHANGES: Confirmation dialog using div and CSS */}
+      {/* Confirmation Modal */}
       {isConfirmOpen && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 1000,
-          }}
-        >
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
-            style={{
-              background: "white",
-              padding: "20px",
-              borderRadius: "8px",
-              maxWidth: "400px",
-              width: "90%",
-            }}
-          >
-            <h3 style={{ color: COLORS.text, fontSize: "1.25rem", marginBottom: "16px" }}>
-              Confirm Action
-            </h3>
-            <p>Are you sure you want to {actionType} this user?</p>
-            <div style={{ display: "flex", gap: "8px", marginTop: "16px", justifyContent: "flex-end" }}>
+            className="absolute inset-0 bg-black/50 backdrop-blur-md"
+            onClick={() => setIsConfirmOpen(false)}
+          />
+          <div className="relative bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+            <h3 className="text-2xl font-bold text-gray-900 mb-4">Confirm Action</h3>
+            <p className="text-gray-700 mb-8">
+              Are you sure you want to <strong>{actionType}</strong> this user?
+            </p>
+            <div className="flex justify-end gap-4">
               <button
                 onClick={() => setIsConfirmOpen(false)}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: "4px",
-                  border: "none",
-                  background: "gray",
-                  color: "white",
-                  cursor: "pointer",
-                }}
+                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
               >
                 Cancel
               </button>
               <button
                 onClick={handleUpdateUser}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: "4px",
-                  border: "none",
-                  background: COLORS.secondary,
-                  color: "white",
-                  cursor: "pointer",
-                }}
+                disabled={isUpdating}
+                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition flex items-center gap-2"
               >
+                {isUpdating && <Loader2 className="h-4 w-4 animate-spin" />}
                 Confirm
               </button>
             </div>
